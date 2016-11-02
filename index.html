@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>五子棋</title>
+	<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+	<canvas id='chess' width="450px" height="450px"></canvas>
+	<script type="text/javascript" src="js/script.js"></script>
+	<div style="text-align: center;">
+		<input type="button" value="团队新AI5步" onclick="computerAI()">
+        <input type="button" value="团队新AI7步" onclick="computerAI7()">
+        <input type="button" value="脱先" onclick="pass()">
+    </div>
+	<p>
+		<input type="button" value="四四禁手测试1" onclick="test_fourfour_1()">
+		<input type="button" value="四四禁手测试2" onclick="test_fourfour_2()">
+		<input type="button" value="四四禁手测试3" onclick="test_fourfour_3()">
+		<input type="button" value="四四禁手测试4" onclick="test_fourfour_4()">
+		<input type="button" value="四四禁手测试5" onclick="test_fourfour_5()">
+	</p>
+	<p>
+		<input type="button" value="三三禁手测试1" onclick="test_threethree_1()">
+		<input type="button" value="三三禁手测试2" onclick="test_threethree_2()">
+		<input type="button" value="三三禁手测试3" onclick="test_threethree_3()">
+		<input type="button" value="三三禁手测试4" onclick="test_threethree_4()">
+	</p>
+	<p>
+		<input type="button" value="长连禁手测试1" onclick="test_long_1()">
+		<input type="button" value="长连禁手测试2" onclick="test_long_2()">
+	</p>
+	<p>
+		<input type="button" value="开启赢判定开关" onclick="testwin()">
+	</p>
+</body>
+
+<script type="text/javascript">
+	var chess = document.getElementById('chess');
+	var context = chess.getContext('2d');
+	var chessBoard = [];
+	var isBlack = true;
+	var over = false;
+
+	// 禁手测试开关
+	var test_forbidden=false;
+
+	// isWin测试
+	var test_win = false;
+
+	for (var i = 0; i < 15; i++) {
+		chessBoard[i] = [];
+		for (var j = 0; j < 15; j++) {
+			chessBoard[i][j] = 0;
+		}
+	}
+
+	//
+	// 赢法统计数组
+	//
+	var blackWin = [];
+	var whiteWin = [];
+
+	for (var i = 0; i < count; i++) {
+		blackWin[i] = 0;
+		whiteWin[i] = 0;
+	}
+
+	context.strokeStyle = "#BFBFBF";
+
+	// 我方落子的判断
+	chess.onclick = function (e) {
+		if (over) {
+			return;
+		}
+		/*if (!isBlack) {
+		 return;
+		 }*/
+		var x = e.offsetX;
+		var y = e.offsetY;
+		var i = Math.floor(x / 30);
+		var j = Math.floor(y / 30);
+		// 检验是否落子,空的位置才能落子
+		if (chessBoard[i][j] === 0) {
+			oneStep(i, j, isBlack);
+			console.log(' my: ' + '(' + i + ',' + j + ')');
+
+			if (isBlack && test_forbidden) {
+				var result = ForbiddenCheck(chessBoard,i,j);
+				switch(result) {
+					case THREE_THREE_FORBIDDEN:
+						window.alert("三三禁手！");
+						return;
+					case FOUR_FOUR_FORBIDDEN:
+						window.alert("四四禁手！");
+						return;
+					case LONG_FORBIDDEN:
+						window.alert("长连禁手！");
+						return;
+				}
+			}
+
+			if (isBlack) {
+				chessBoard[i][j] = 1;
+				// 检查禁手
+				/*if (enableHandicap && handicap()) {
+
+				}*/
+			} else {
+				chessBoard[i][j] = 2;
+			}
+
+			if (test_win) {
+				console.log("test win:");
+				if (isWin(chessBoard,i,j,isBlack ? 1:2)) {
+					window.alert(isBlack ? "黑棋赢！":"白棋赢！");
+					return;
+				}
+			}
+
+			// 更新我方各赢法落子进度
+			for (var k = 0; k < count; k++) {
+				if (wins[i][j][k]) {
+					// 验证该赢法落子进度是否有效
+					// 若为blackWin[k]设置0到4的范围会导致赢法数组落子进度的更新错误
+					// if (blackWin[k] >= 0 && blackWin[k] < 5) {
+					if (isBlack) {
+						blackWin[k]++;
+						whiteWin[k] = 6;
+						if (blackWin[k] === 5) {
+							window.alert("black Win!");
+							over = true;
+							break;
+						}
+					} else {
+						whiteWin[k]++;
+						blackWin[k] = 6;
+						if (whiteWin[k] === 5) {
+							window.alert("white Win!");
+							over = true;
+							break;
+						}
+					}
+				}
+				// }
+			}
+
+			// 移交控制权,换下棋方
+			if (!over) {
+				isBlack = !isBlack;
+			}
+		}
+	};
+
+	// 绘制棋盘
+	var logo = new Image();
+	logo.src = "images/logo.jpg";
+	logo.onload = function () {
+		context.drawImage(logo, 14, 14, 421, 421);
+		drawChessBoard();
+	};
+	var drawChessBoard = function () {
+		for (var i = 0; i < 15; i++) {
+			context.moveTo(15 + i * 30, 15);
+			context.lineTo(15 + i * 30, 435);
+			context.stroke();
+			context.moveTo(15, 15 + i * 30);
+			context.lineTo(435, 15 + i * 30);
+			context.stroke();
+		}
+	};
+
+	// 绘制棋子
+	var oneStep = function (i, j, isBlack) {
+		context.beginPath();
+		context.arc(15 + i * 30, 15 + j * 30, 13, 0, 2 * Math.PI);
+		context.closePath();
+		var gradient = context.createRadialGradient(15 + i * 30 + 2, 15 + j * 30 - 2, 13, 15 + i * 30 + 2, 15 + j * 30 - 2, 0);
+		if (isBlack) {
+			gradient.addColorStop(0, "#0A0A0A");
+			gradient.addColorStop(1, "#636766");
+		} else {
+			gradient.addColorStop(0, "gold");
+			gradient.addColorStop(1, "yellow");
+		}
+		context.fillStyle = gradient;
+		context.fill();
+	};
+
+	function test() {
+		ai_compute();
+	}
+
+	function pass() {
+		isBlack = !isBlack;
+	}
+
+
+
+	function testwin() {
+		test_win =true;
+	}
+
+	// 禁手测试代码，切记删除！！
+	// 禁手测试
+	// 四四禁手测试
+	function test_fourfour_1() {
+		chessBoard[2][0]=BLACK;
+		chessBoard[2][1]=BLACK;
+		chessBoard[2][2]=BLACK;
+		chessBoard[4][1]=BLACK;
+		chessBoard[3][2]=BLACK;
+		chessBoard[1][4]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	function test_fourfour_2() {
+		chessBoard[14][2]=BLACK;
+		chessBoard[12][2]=BLACK;
+		chessBoard[10][2]=BLACK;
+		chessBoard[8][2]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	function test_fourfour_3() {
+		chessBoard[14][4]=BLACK;
+		chessBoard[11][4]=BLACK;
+		chessBoard[10][4]=BLACK;
+		chessBoard[8][4]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	function test_fourfour_4() {
+		chessBoard[0][9]=BLACK;
+		chessBoard[1][10]=BLACK;
+		chessBoard[2][11]=BLACK;
+		chessBoard[4][11]=BLACK;
+		chessBoard[2][13]=BLACK;
+		chessBoard[1][14]=BLACK;
+		chessBoard[5][14]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	function test_fourfour_5() {
+		chessBoard[7][7]=BLACK;
+		chessBoard[9][9]=BLACK;
+		chessBoard[10][9]=BLACK;
+		chessBoard[11][11]=BLACK;
+		chessBoard[10][12]=BLACK;
+		chessBoard[12][12]=BLACK;
+		chessBoard[10][13]=BLACK;
+		chessBoard[14][14]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	// 三三禁手测试
+	function test_threethree_1() {
+		chessBoard[3][1]=BLACK;
+		chessBoard[2][2]=BLACK;
+		chessBoard[2][4]=BLACK;
+		chessBoard[3][5]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	function test_threethree_2() {
+		chessBoard[9][1]=BLACK;
+		chessBoard[13][1]=BLACK;
+		chessBoard[10][2]=BLACK;
+		chessBoard[12][2]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	function test_threethree_3() {
+		chessBoard[1][8]=BLACK;
+		chessBoard[2][10]=BLACK;
+		chessBoard[1][11]=BLACK;
+		chessBoard[3][11]=BLACK;
+		chessBoard[1][13]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	function test_threethree_4() {
+		chessBoard[9][6]=BLACK;
+		chessBoard[11][7]=BLACK;
+		chessBoard[7][8]=BLACK;
+		chessBoard[8][8]=BLACK;
+		chessBoard[9][9]=BLACK;
+		chessBoard[9][10]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	// 长连禁手测试
+	function test_long_1() {
+		chessBoard[3][2]=BLACK;
+		chessBoard[4][2]=BLACK;
+		chessBoard[5][2]=BLACK;
+		chessBoard[7][2]=BLACK;
+		chessBoard[8][2]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	function test_long_2() {
+		chessBoard[3][2]=BLACK;
+		chessBoard[4][2]=BLACK;
+		chessBoard[5][2]=BLACK;
+		chessBoard[6][2]=BLACK;
+		chessBoard[8][2]=BLACK;
+
+		drawForbidden(chessBoard);
+
+		test_forbidden=true;
+	}
+
+	// 初始化禁手棋盘
+	function drawForbidden(chessBoard) {
+		for(var i=0;i<15;i++) {
+			for(var j=0;j<15;j++) {
+				if(chessBoard[i][j]==BLACK)
+					oneStep(i,j,true);
+			}
+		}
+	}
+
+
+</script>
+</html>
